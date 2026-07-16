@@ -26,7 +26,9 @@ export default async function handler(req, res) {
         const clientId = session.client_reference_id;
         const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-        await supabaseAdmin.from("subscriptions").upsert(
+        console.log("checkout.session.completed - clientId:", clientId);
+
+        const { error } = await supabaseAdmin.from("subscriptions").upsert(
           {
             client_id: clientId,
             stripe_customer_id: session.customer,
@@ -36,6 +38,11 @@ export default async function handler(req, res) {
           },
           { onConflict: "client_id" }
         );
+
+        if (error) {
+          console.error("Error guardando subscription:", error);
+          return res.status(500).json({ error: error.message });
+        }
         break;
       }
 
@@ -43,10 +50,15 @@ export default async function handler(req, res) {
         const invoice = event.data.object;
         const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-        await supabaseAdmin
+        const { error } = await supabaseAdmin
           .from("subscriptions")
           .update({ status: "active", current_period_end: periodEnd })
           .eq("stripe_customer_id", invoice.customer);
+
+        if (error) {
+          console.error("Error actualizando subscription:", error);
+          return res.status(500).json({ error: error.message });
+        }
         break;
       }
 
@@ -66,6 +78,7 @@ export default async function handler(req, res) {
     }
     res.status(200).json({ received: true });
   } catch (err) {
+    console.error("Error general en webhook:", err);
     res.status(500).json({ error: err.message });
   }
 }
