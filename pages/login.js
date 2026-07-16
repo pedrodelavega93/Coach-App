@@ -14,6 +14,12 @@ export default function Login() {
   const submit = async () => {
     setError("");
     setNotice("");
+    if (!email || !password) {
+      return setError("Por favor completa tu correo y contraseña.");
+    }
+    if (password.length < 6) {
+      return setError("La contraseña debe tener al menos 6 caracteres.");
+    }
     if (mode === "signup") {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) return setError(error.message);
