@@ -190,6 +190,15 @@ export default function Workout() {
     return `${m}:${s}`;
   };
 
+  const getEmbeddableVideo = (url) => {
+    if (!url) return null;
+    const driveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|uc\?.*id=)([^/?&]+)/);
+    if (driveMatch) {
+      return { type: "iframe", src: `https://drive.google.com/file/d/${driveMatch[1]}/preview` };
+    }
+    return { type: "video", src: url };
+  };
+
   if (loading) return <p style={{ color: "#EDEAE3", padding: 24 }}>Cargando entrenamiento...</p>;
   if (!routine) return <p style={{ color: "#EDEAE3", padding: 24 }}>No se encontró la rutina.</p>;
 
@@ -321,7 +330,18 @@ export default function Workout() {
             >
               <h3 style={{ color: "#EDEAE3", marginTop: 0 }}>{activeVideo.name}</h3>
               {activeVideo.video_url ? (
-                <video src={activeVideo.video_url} controls style={{ width: "100%", borderRadius: 8, marginBottom: 14 }} />
+                (() => {
+                  const embed = getEmbeddableVideo(activeVideo.video_url);
+                  return embed.type === "iframe" ? (
+                    <iframe
+                      src={embed.src}
+                      allow="autoplay"
+                      style={{ width: "100%", aspectRatio: "16/9", border: "none", borderRadius: 8, marginBottom: 14 }}
+                    />
+                  ) : (
+                    <video src={embed.src} controls style={{ width: "100%", borderRadius: 8, marginBottom: 14 }} />
+                  );
+                })()
               ) : (
                 <p style={{ color: "#8A9199" }}>Tu entrenador aún no subió un video para este ejercicio.</p>
               )}
