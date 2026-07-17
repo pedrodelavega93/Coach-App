@@ -7,6 +7,7 @@ const TOTAL_WEEKS = 4;
 
 export default function Client() {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [sub, setSub] = useState(null);
   const [routine, setRoutine] = useState(null);
   const router = useRouter();
@@ -19,6 +20,13 @@ export default function Client() {
     const { data: { user } } = await supabase.auth.getUser();
     setUser(user);
     if (!user) return;
+
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    setProfile(profileData);
 
     const { data: subData } = await supabase
       .from("subscriptions")
@@ -59,7 +67,11 @@ export default function Client() {
   const currentWeek = Math.min(TOTAL_WEEKS, Math.max(1, Math.ceil(daysElapsed / 7) || 1));
   const progressPct = Math.min(100, Math.round((daysElapsed / CYCLE_DAYS) * 100));
 
-  const firstName = user.email ? user.email.split("@")[0].split(".")[0] : "";
+  const firstName = profile?.full_name
+    ? profile.full_name.trim().split(" ")[0]
+    : user.email
+    ? user.email.split("@")[0].split(".")[0]
+    : "";
   const displayName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : "";
   const hour = new Date().getHours();
   const saludo = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
