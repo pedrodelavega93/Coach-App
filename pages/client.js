@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
 const CYCLE_DAYS = 30;
@@ -8,8 +9,7 @@ export default function Client() {
   const [user, setUser] = useState(null);
   const [sub, setSub] = useState(null);
   const [routine, setRoutine] = useState(null);
-  const [videoUrl, setVideoUrl] = useState(null);
-  const [showVideo, setShowVideo] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     init();
@@ -35,13 +35,6 @@ export default function Client() {
       .limit(1)
       .maybeSingle();
     setRoutine(routineData);
-
-    const active = subData?.status === "active" && new Date(subData.current_period_end) > new Date();
-    if (active && routineData?.video_path) {
-      const res = await fetch(`/api/get-video-url?routineId=${routineData.id}&clientId=${user.id}`);
-      const json = await res.json();
-      if (json.url) setVideoUrl(json.url);
-    }
   };
 
   const renovar = async () => {
@@ -98,18 +91,12 @@ export default function Client() {
                   </p>
                 )}
 
-                {videoUrl ? (
-                  showVideo ? (
-                    <video src={videoUrl} controls autoPlay style={{ width: "100%", borderRadius: 8 }} />
-                  ) : (
-                    <button
-                      onClick={() => setShowVideo(true)}
-                      style={{ width: "100%", padding: "14px", borderRadius: 8, background: "#F4C430", color: "#1C1F22", fontWeight: 700, border: "none", cursor: "pointer" }}
-                    >
-                      INICIAR ENTRENAMIENTO
-                    </button>
-                  )
-                ) : null}
+                <button
+                  onClick={() => router.push(`/workout?routineId=${routine.id}`)}
+                  style={{ width: "100%", padding: "14px", borderRadius: 8, background: "#F4C430", color: "#1C1F22", fontWeight: 700, border: "none", cursor: "pointer" }}
+                >
+                  INICIAR ENTRENAMIENTO
+                </button>
               </>
             ) : (
               <p style={{ color: "#8A9199" }}>Tu entrenador aún no te ha asignado una rutina.</p>
@@ -137,7 +124,6 @@ export default function Client() {
               ["📸", "Fotos de avance"],
               ["⚖️", "Peso"],
               ["📏", "Medidas"],
-              ["🍽️", "Nutrición"],
               ["💬", "Chat con tu coach"],
             ].map(([icon, label]) => (
               <div
