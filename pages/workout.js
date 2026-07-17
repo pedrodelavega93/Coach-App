@@ -11,6 +11,8 @@ export default function Workout() {
   const [items, setItems] = useState([]); // routine_exercises + exercise info + logs
   const [loading, setLoading] = useState(true);
   const [activeVideo, setActiveVideo] = useState(null); // exercise object being viewed
+  const [activeVideoUrl, setActiveVideoUrl] = useState(null);
+  const [loadingVideo, setLoadingVideo] = useState(false);
   const [rest, setRest] = useState(null); // { secondsLeft, running, nextName }
   const timerRef = useRef(null);
 
@@ -190,13 +192,14 @@ export default function Workout() {
     return `${m}:${s}`;
   };
 
-  const getEmbeddableVideo = (url) => {
-    if (!url) return null;
-    const driveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|uc\?.*id=)([^/?&]+)/);
-    if (driveMatch) {
-      return { type: "iframe", src: `https://drive.google.com/file/d/${driveMatch[1]}/preview` };
-    }
-    return { type: "video", src: url };
+  const openVideo = async (exercise) => {
+    setActiveVideo(exercise);
+    setActiveVideoUrl(null);
+    setLoadingVideo(true);
+    const res = await fetch(`/api/get-exercise-video-url?exerciseId=${exercise.id}&clientId=${user.id}`);
+    const json = await res.json();
+    setLoadingVideo(false);
+    if (json.url) setActiveVideoUrl(json.url);
   };
 
   if (loading) return <p style={{ color: "#EDEAE3", padding: 24 }}>Cargando entrenamiento...</p>;
@@ -256,7 +259,7 @@ export default function Workout() {
               }}
             >
               <h3
-                onClick={() => setActiveVideo(item.exercise)}
+                onClick={() => openVideo(item.exercise)}
                 style={{ color: "#F4C430", margin: "0 0 4px 0", cursor: "pointer", textDecoration: "underline" }}
               >
                 {item.exercise?.name || "Ejercicio"}
@@ -312,7 +315,7 @@ export default function Workout() {
 
         {activeVideo && (
           <div
-            onClick={() => setActiveVideo(null)}
+            onClick={() => { setActiveVideo(null); setActiveVideoUrl(null); }}
             style={{
               position: "fixed",
               inset: 0,
@@ -329,19 +332,10 @@ export default function Workout() {
               style={{ background: "#26292E", borderRadius: 12, padding: 20, maxWidth: 480, width: "100%" }}
             >
               <h3 style={{ color: "#EDEAE3", marginTop: 0 }}>{activeVideo.name}</h3>
-              {activeVideo.video_url ? (
-                (() => {
-                  const embed = getEmbeddableVideo(activeVideo.video_url);
-                  return embed.type === "iframe" ? (
-                    <iframe
-                      src={embed.src}
-                      allow="autoplay"
-                      style={{ width: "100%", aspectRatio: "16/9", border: "none", borderRadius: 8, marginBottom: 14 }}
-                    />
-                  ) : (
-                    <video src={embed.src} controls style={{ width: "100%", borderRadius: 8, marginBottom: 14 }} />
-                  );
-                })()
+              {loadingVideo ? (
+                <p style={{ color: "#8A9199" }}>Cargando video...</p>
+              ) : activeVideoUrl ? (
+                <video src={activeVideoUrl} controls autoPlay style={{ width: "100%", borderRadius: 8, marginBottom: 14 }} />
               ) : (
                 <p style={{ color: "#8A9199" }}>Tu entrenador aún no subió un video para este ejercicio.</p>
               )}
@@ -364,7 +358,7 @@ export default function Workout() {
                 </>
               )}
               <button
-                onClick={() => setActiveVideo(null)}
+                onClick={() => { setActiveVideo(null); setActiveVideoUrl(null); }}
                 style={{ width: "100%", padding: 12, borderRadius: 8, background: "#F4C430", color: "#1C1F22", fontWeight: 700, border: "none", cursor: "pointer" }}
               >
                 Cerrar
