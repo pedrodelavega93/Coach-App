@@ -204,6 +204,30 @@ export default function BuildRoutine() {
   };
 
 
+  const deleteRoutine = async () => {
+    if (routineMode === "new") return;
+    const routineTitle = existingRoutines.find((r) => r.id === routineMode)?.title || "esta rutina";
+    const confirmed = confirm(
+      `¿Seguro que quieres eliminar "${routineTitle}"? Esto borra la rutina y todos sus ejercicios asignados (los ejercicios del catálogo NO se borran, solo su conexión con esta rutina). No se puede deshacer.`
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    await supabase.from("routine_exercises").delete().eq("routine_id", routineMode);
+    const { error } = await supabase.from("routines").delete().eq("id", routineMode);
+    setSaving(false);
+
+    if (error) {
+      alert("Error al eliminar: " + error.message);
+      return;
+    }
+
+    setSavedMsg(`"${routineTitle}" fue eliminada.`);
+    setRoutineMode("new");
+    setItems([]);
+    loadRoutinesForClient(selectedClientId);
+  };
+
   const save = async () => {
     if (!selectedClientId) return alert("Elige un cliente.");
     if (items.length === 0) return alert("Agrega al menos un ejercicio.");
@@ -287,6 +311,15 @@ export default function BuildRoutine() {
                 <option key={r.id} value={r.id}>{r.title}</option>
               ))}
             </select>
+
+            {routineMode !== "new" && (
+              <p
+                onClick={deleteRoutine}
+                style={{ color: "#B3261E", fontSize: 13, cursor: "pointer", marginTop: -6, marginBottom: 14 }}
+              >
+                Eliminar esta rutina
+              </p>
+            )}
 
             {routineMode === "new" && (
               <>
