@@ -19,6 +19,7 @@ export default function BuildRoutine() {
   const [pickRest, setPickRest] = useState(60);
 
   const [showNewExercise, setShowNewExercise] = useState(false);
+  const [editingExerciseId, setEditingExerciseId] = useState(null); // null = creando uno nuevo
   const [exName, setExName] = useState("");
   const [exVideoFile, setExVideoFile] = useState(null);
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -115,11 +116,34 @@ export default function BuildRoutine() {
     );
   };
 
-  const createExercise = async () => {
+  const startEditExercise = (ex) => {
+    setEditingExerciseId(ex.id);
+    setExName(ex.name || "");
+    setExVideoFile(null);
+    setExMuscles(ex.muscles_worked || "");
+    setExTechnique(ex.technique_notes || "");
+    setExMistakes(ex.common_mistakes || "");
+    setShowNewExercise(true);
+  };
+
+  const cancelExerciseForm = () => {
+    setShowNewExercise(false);
+    setEditingExerciseId(null);
+    setExName("");
+    setExVideoFile(null);
+    setExMuscles("");
+    setExTechnique("");
+    setExMistakes("");
+  };
+
+  const saveExercise = async () => {
     if (!exName) return;
     setUploadingVideo(true);
 
-    let video_path = null;
+    let video_path = editingExerciseId
+      ? catalog.find((c) => c.id === editingExerciseId)?.video_path || null
+      : null;
+
     if (exVideoFile) {
       const filePath = `${Date.now()}-${exVideoFile.name}`;
       const { error: uploadError } = await supabase.storage
@@ -133,30 +157,40 @@ export default function BuildRoutine() {
       video_path = filePath;
     }
 
-    const { data, error } = await supabase
-      .from("exercises")
-      .insert({
-        name: exName,
-        video_path,
-        muscles_worked: exMuscles || null,
-        technique_notes: exTechnique || null,
-        common_mistakes: exMistakes || null,
-      })
-      .select()
-      .maybeSingle();
+    const payload = {
+      name: exName,
+      video_path,
+      muscles_worked: exMuscles || null,
+      technique_notes: exTechnique || null,
+      common_mistakes: exMistakes || null,
+    };
+
+    let data, error;
+    if (editingExerciseId) {
+      ({ data, error } = await supabase
+        .from("exercises")
+        .update(payload)
+        .eq("id", editingExerciseId)
+        .select()
+        .maybeSingle());
+    } else {
+      ({ data, error } = await supabase.from("exercises").insert(payload).select().maybeSingle());
+    }
+
     setUploadingVideo(false);
     if (error) {
       alert(error.message);
       return;
     }
-    setCatalog((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+
+    setCatalog((prev) => {
+      const withoutOld = prev.filter((c) => c.id !== data.id);
+      return [...withoutOld, data].sort((a, b) => a.name.localeCompare(b.name));
+    });
+    // Si el ejercicio editado ya estaba agregado a la rutina actual, actualiza su nombre ahí también
+    setItems((prev) => prev.map((it) => (it.exercise_id === data.id ? { ...it, name: data.name } : it)));
     setPickExerciseId(data.id);
-    setExName("");
-    setExVideoFile(null);
-    setExMuscles("");
-    setExTechnique("");
-    setExMistakes("");
-    setShowNewExercise(false);
+    cancelExerciseForm();
   };
 
   const save = async () => {
@@ -276,8 +310,17 @@ export default function BuildRoutine() {
                 ))}
               </select>
 
+              {pickExerciseId && !showNewExercise && (
+                <p
+                  onClick={() => startEditExercise(catalog.find((c) => c.id === pickExerciseId))}
+                  style={{ color: "#8A9199", fontSize: 13, cursor: "pointer", marginBottom: 12, textDecoration: "underline" }}
+                >
+                  Editar este ejercicio (nombre, video, técnica)
+                </p>
+              )}
+
               <p
-                onClick={() => setShowNewExercise((v) => !v)}
+                onClick={() => (showNewExercise ? cancelExerciseForm() : setShowNewExercise(true))}
                 style={{ color: "#F4C430", fontSize: 13, cursor: "pointer", marginBottom: 12 }}
               >
                 {showNewExercise ? "Cancelar" : "+ Crear ejercicio nuevo en el catálogo"}
@@ -285,8 +328,13 @@ export default function BuildRoutine() {
 
               {showNewExercise && (
                 <div style={{ marginBottom: 14, borderTop: "1px solid #3A3F45", paddingTop: 12 }}>
+                  {editingExerciseId && (
+                    <p style={{ color: "#8A9199", fontSize: 12, marginBottom: 10 }}>
+                      Editando "{catalog.find((c) => c.id === editingExerciseId)?.name}"
+                    </p>
+                  )}
                   <input placeholder="Nombre del ejercicio" value={exName} onChange={(e) => setExName(e.target.value)} style={inputStyle} />
-                  <label style={labelStyle}>Video de técnica</label>
+                  <label style={labelStyle}>Video de técnica{editingExerciseId ? " (deja vacío para conservar el actual)" : ""}</label>
                   <input
                     type="file"
                     accept="video/*"
@@ -296,8 +344,8 @@ export default function BuildRoutine() {
                   <input placeholder="Músculos trabajados" value={exMuscles} onChange={(e) => setExMuscles(e.target.value)} style={inputStyle} />
                   <textarea placeholder="Descripción de la técnica" value={exTechnique} onChange={(e) => setExTechnique(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
                   <textarea placeholder="Errores comunes" value={exMistakes} onChange={(e) => setExMistakes(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-                  <button onClick={createExercise} disabled={uploadingVideo} style={smallBtnStyle}>
-                    {uploadingVideo ? "Subiendo video..." : "Guardar ejercicio en catálogo"}
+                  <button onClick={saveExercise} disabled={uploadingVideo} style={smallBtnStyle}>
+                    {uploadingVideo ? "Subiendo video..." : editingExerciseId ? "Guardar cambios" : "Guardar ejercicio en catálogo"}
                   </button>
                 </div>
               )}
