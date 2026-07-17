@@ -106,6 +106,12 @@ export default function BuildRoutine() {
     setItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const updateItemField = (idx, field, value) => {
+    setItems((prev) =>
+      prev.map((it, i) => (i === idx ? { ...it, [field]: value === "" ? "" : Number(value) } : it))
+    );
+  };
+
   const createExercise = async () => {
     if (!exName) return;
     const { data, error } = await supabase
@@ -136,6 +142,11 @@ export default function BuildRoutine() {
   const save = async () => {
     if (!selectedClientId) return alert("Elige un cliente.");
     if (items.length === 0) return alert("Agrega al menos un ejercicio.");
+    const invalid = items.find((it) => !it.sets || !it.reps);
+    if (invalid) {
+      setSaving(false);
+      return alert(`Revisa "${invalid.name}": series y reps no pueden estar vacíos o en 0.`);
+    }
     setSaving(true);
     setSavedMsg("");
 
@@ -285,17 +296,43 @@ export default function BuildRoutine() {
               {items.map((it, idx) => (
                 <div
                   key={idx}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#26292E", border: "1px solid #3A3F45", borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}
+                  style={{ background: "#26292E", border: "1px solid #3A3F45", borderRadius: 8, padding: "12px 14px", marginBottom: 8 }}
                 >
-                  <div>
-                    <p style={{ color: "#EDEAE3", margin: 0 }}>{it.name}</p>
-                    <p style={{ color: "#8A9199", fontSize: 12, margin: 0 }}>
-                      {it.sets} series × {it.reps} reps · {it.rest_seconds}s descanso
-                    </p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <p style={{ color: "#EDEAE3", margin: 0, fontWeight: 600 }}>{it.name}</p>
+                    <span onClick={() => removeItem(idx)} style={{ color: "#B3261E", cursor: "pointer", fontSize: 13 }}>
+                      Quitar
+                    </span>
                   </div>
-                  <span onClick={() => removeItem(idx)} style={{ color: "#B3261E", cursor: "pointer", fontSize: 13 }}>
-                    Quitar
-                  </span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ ...labelStyle, marginTop: 0 }}>Series</label>
+                      <input
+                        type="number"
+                        value={it.sets}
+                        onChange={(e) => updateItemField(idx, "sets", e.target.value)}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ ...labelStyle, marginTop: 0 }}>Reps</label>
+                      <input
+                        type="number"
+                        value={it.reps}
+                        onChange={(e) => updateItemField(idx, "reps", e.target.value)}
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ ...labelStyle, marginTop: 0 }}>Descanso (s)</label>
+                      <input
+                        type="number"
+                        value={it.rest_seconds}
+                        onChange={(e) => updateItemField(idx, "rest_seconds", e.target.value)}
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
