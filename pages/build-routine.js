@@ -92,7 +92,7 @@ export default function BuildRoutine() {
         exercise_id: pickExerciseId,
         name: ex?.name,
         sets: Number(pickSets),
-        reps: Number(pickReps),
+        reps: pickReps,
         rest_seconds: Number(pickRest),
       },
     ]);
@@ -108,7 +108,9 @@ export default function BuildRoutine() {
 
   const updateItemField = (idx, field, value) => {
     setItems((prev) =>
-      prev.map((it, i) => (i === idx ? { ...it, [field]: value === "" ? "" : Number(value) } : it))
+      prev.map((it, i) =>
+        i === idx ? { ...it, [field]: field === "reps" || value === "" ? value : Number(value) } : it
+      )
     );
   };
 
@@ -281,7 +283,7 @@ export default function BuildRoutine() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Reps</label>
-                  <input type="number" value={pickReps} onChange={(e) => setPickReps(e.target.value)} style={inputStyle} />
+                  <input type="text" value={pickReps} onChange={(e) => setPickReps(e.target.value)} style={inputStyle} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Descanso (s)</label>
@@ -317,7 +319,7 @@ export default function BuildRoutine() {
                     <div style={{ flex: 1 }}>
                       <label style={{ ...labelStyle, marginTop: 0 }}>Reps</label>
                       <input
-                        type="number"
+                        type="text"
                         value={it.reps}
                         onChange={(e) => updateItemField(idx, "reps", e.target.value)}
                         style={inputStyle}
