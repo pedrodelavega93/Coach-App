@@ -20,7 +20,8 @@ export default function BuildRoutine() {
 
   const [showNewExercise, setShowNewExercise] = useState(false);
   const [exName, setExName] = useState("");
-  const [exVideo, setExVideo] = useState("");
+  const [exVideoFile, setExVideoFile] = useState(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [exMuscles, setExMuscles] = useState("");
   const [exTechnique, setExTechnique] = useState("");
   const [exMistakes, setExMistakes] = useState("");
@@ -116,17 +117,34 @@ export default function BuildRoutine() {
 
   const createExercise = async () => {
     if (!exName) return;
+    setUploadingVideo(true);
+
+    let video_path = null;
+    if (exVideoFile) {
+      const filePath = `${Date.now()}-${exVideoFile.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("exercise-videos")
+        .upload(filePath, exVideoFile);
+      if (uploadError) {
+        setUploadingVideo(false);
+        alert("Error al subir el video: " + uploadError.message);
+        return;
+      }
+      video_path = filePath;
+    }
+
     const { data, error } = await supabase
       .from("exercises")
       .insert({
         name: exName,
-        video_url: exVideo || null,
+        video_path,
         muscles_worked: exMuscles || null,
         technique_notes: exTechnique || null,
         common_mistakes: exMistakes || null,
       })
       .select()
       .maybeSingle();
+    setUploadingVideo(false);
     if (error) {
       alert(error.message);
       return;
@@ -134,7 +152,7 @@ export default function BuildRoutine() {
     setCatalog((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
     setPickExerciseId(data.id);
     setExName("");
-    setExVideo("");
+    setExVideoFile(null);
     setExMuscles("");
     setExTechnique("");
     setExMistakes("");
@@ -268,11 +286,19 @@ export default function BuildRoutine() {
               {showNewExercise && (
                 <div style={{ marginBottom: 14, borderTop: "1px solid #3A3F45", paddingTop: 12 }}>
                   <input placeholder="Nombre del ejercicio" value={exName} onChange={(e) => setExName(e.target.value)} style={inputStyle} />
-                  <input placeholder="Link del video de técnica" value={exVideo} onChange={(e) => setExVideo(e.target.value)} style={inputStyle} />
+                  <label style={labelStyle}>Video de técnica</label>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => setExVideoFile(e.target.files?.[0] || null)}
+                    style={{ ...inputStyle, padding: "8px 0" }}
+                  />
                   <input placeholder="Músculos trabajados" value={exMuscles} onChange={(e) => setExMuscles(e.target.value)} style={inputStyle} />
                   <textarea placeholder="Descripción de la técnica" value={exTechnique} onChange={(e) => setExTechnique(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
                   <textarea placeholder="Errores comunes" value={exMistakes} onChange={(e) => setExMistakes(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-                  <button onClick={createExercise} style={smallBtnStyle}>Guardar ejercicio en catálogo</button>
+                  <button onClick={createExercise} disabled={uploadingVideo} style={smallBtnStyle}>
+                    {uploadingVideo ? "Subiendo video..." : "Guardar ejercicio en catálogo"}
+                  </button>
                 </div>
               )}
 
