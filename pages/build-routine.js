@@ -140,58 +140,69 @@ export default function BuildRoutine() {
     if (!exName) return;
     setUploadingVideo(true);
 
-    let video_path = editingExerciseId
-      ? catalog.find((c) => c.id === editingExerciseId)?.video_path || null
-      : null;
+    try {
+      let video_path = editingExerciseId
+        ? catalog.find((c) => c.id === editingExerciseId)?.video_path || null
+        : null;
 
-    if (exVideoFile) {
-      const filePath = `${Date.now()}-${exVideoFile.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("exercise-videos")
-        .upload(filePath, exVideoFile);
-      if (uploadError) {
-        setUploadingVideo(false);
-        alert("Error al subir el video: " + uploadError.message);
+      if (exVideoFile) {
+        const filePath = `${Date.now()}-${exVideoFile.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("exercise-videos")
+          .upload(filePath, exVideoFile);
+        if (uploadError) {
+          setUploadingVideo(false);
+          alert("Error al subir el video: " + uploadError.message);
+          return;
+        }
+        video_path = filePath;
+      }
+
+      const payload = {
+        name: exName,
+        video_path,
+        muscles_worked: exMuscles || null,
+        technique_notes: exTechnique || null,
+        common_mistakes: exMistakes || null,
+      };
+
+      let data, error;
+      if (editingExerciseId) {
+        ({ data, error } = await supabase
+          .from("exercises")
+          .update(payload)
+          .eq("id", editingExerciseId)
+          .select()
+          .maybeSingle());
+      } else {
+        ({ data, error } = await supabase.from("exercises").insert(payload).select().maybeSingle());
+      }
+
+      setUploadingVideo(false);
+
+      if (error) {
+        alert("Error al guardar el ejercicio: " + error.message);
         return;
       }
-      video_path = filePath;
+      if (!data) {
+        alert("No se pudo guardar el ejercicio (no se recibió confirmación de la base de datos). Intenta de nuevo.");
+        return;
+      }
+
+      setCatalog((prev) => {
+        const withoutOld = prev.filter((c) => c.id !== data.id);
+        return [...withoutOld, data].sort((a, b) => a.name.localeCompare(b.name));
+      });
+      // Si el ejercicio editado ya estaba agregado a la rutina actual, actualiza su nombre ahí también
+      setItems((prev) => prev.map((it) => (it.exercise_id === data.id ? { ...it, name: data.name } : it)));
+      setPickExerciseId(data.id);
+      cancelExerciseForm();
+    } catch (err) {
+      setUploadingVideo(false);
+      alert("Ocurrió un error inesperado: " + (err?.message || err));
     }
-
-    const payload = {
-      name: exName,
-      video_path,
-      muscles_worked: exMuscles || null,
-      technique_notes: exTechnique || null,
-      common_mistakes: exMistakes || null,
-    };
-
-    let data, error;
-    if (editingExerciseId) {
-      ({ data, error } = await supabase
-        .from("exercises")
-        .update(payload)
-        .eq("id", editingExerciseId)
-        .select()
-        .maybeSingle());
-    } else {
-      ({ data, error } = await supabase.from("exercises").insert(payload).select().maybeSingle());
-    }
-
-    setUploadingVideo(false);
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setCatalog((prev) => {
-      const withoutOld = prev.filter((c) => c.id !== data.id);
-      return [...withoutOld, data].sort((a, b) => a.name.localeCompare(b.name));
-    });
-    // Si el ejercicio editado ya estaba agregado a la rutina actual, actualiza su nombre ahí también
-    setItems((prev) => prev.map((it) => (it.exercise_id === data.id ? { ...it, name: data.name } : it)));
-    setPickExerciseId(data.id);
-    cancelExerciseForm();
   };
+
 
   const save = async () => {
     if (!selectedClientId) return alert("Elige un cliente.");
