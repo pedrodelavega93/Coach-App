@@ -43,7 +43,7 @@ export default function BuildRoutine() {
   }, [routineMode]);
 
   const loadClients = async () => {
-    const { data } = await supabase.from("profiles").select("id, email").eq("role", "client");
+    const { data } = await supabase.from("profiles").select("id, email, full_name").eq("role", "client");
     setClients(data || []);
   };
 
@@ -207,7 +207,7 @@ export default function BuildRoutine() {
         >
           <option value="">Selecciona un cliente</option>
           {clients.map((c) => (
-            <option key={c.id} value={c.id}>{c.email}</option>
+            <option key={c.id} value={c.id}>{c.full_name || c.email}</option>
           ))}
         </select>
 
