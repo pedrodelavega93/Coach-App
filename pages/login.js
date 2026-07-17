@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
 export default function Login() {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState("signin"); // signin | signup
@@ -17,6 +18,9 @@ export default function Login() {
     if (!email || !password) {
       return setError("Por favor completa tu correo y contraseña.");
     }
+    if (mode === "signup" && !fullName) {
+      return setError("Por favor escribe tu nombre completo.");
+    }
     if (password.length < 6) {
       return setError("La contraseña debe tener al menos 6 caracteres.");
     }
@@ -24,7 +28,7 @@ export default function Login() {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) return setError(error.message);
       // Crea el perfil como cliente por defecto
-      await supabase.from("profiles").insert({ id: data.user.id, email, role: "client" });
+      await supabase.from("profiles").insert({ id: data.user.id, email, full_name: fullName, role: "client" });
       router.push("/client");
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -57,6 +61,14 @@ export default function Login() {
           Tu evolución comienza aquí
         </p>
 
+        {mode === "signup" && (
+          <input
+            placeholder="Nombre completo"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            style={inputStyle}
+          />
+        )}
         <input
           placeholder="Correo electrónico"
           value={email}
