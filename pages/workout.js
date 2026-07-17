@@ -79,4 +79,55 @@ export default function Workout() {
       const allLogsForThis = (logs || []).filter((l) => l.routine_exercise_id === re.id);
 
       const todayLogs = allLogsForThis.filter((l) => new Date(l.logged_at) >= startOfToday);
-      const previousLogs = allLogsForThis.filter((l) => new Date(l.logged_at) 
+      const previousLogs = allLogsForThis.filter((l) => new Date(l.logged_at) < startOfToday);
+
+      const sets = Array.from({ length: re.sets }, (_, i) => {
+        const setNumber = i + 1;
+        const existing = todayLogs.find((l) => l.set_number === setNumber);
+        const previous = previousLogs.find((l) => l.set_number === setNumber);
+        return {
+          setNumber,
+          logId: existing?.id || null,
+          weight: existing?.weight_kg ?? "",
+          completed: existing?.completed || false,
+          previousWeight: previous?.weight_kg ?? null,
+        };
+      });
+
+      return {
+        routineExerciseId: re.id,
+        exercise: re.exercises,
+        setsCount: re.sets,
+        reps: re.reps,
+        restSeconds: re.rest_seconds,
+        sets,
+      };
+    });
+
+    setItems(built);
+    setLoading(false);
+  };
+
+  const totalExercises = items.length;
+  const completedExercises = items.filter((it) => it.sets.every((s) => s.completed)).length;
+  const progressPct = totalExercises ? Math.round((completedExercises / totalExercises) * 100) : 0;
+
+  const updateWeight = (routineExerciseId, setNumber, value) => {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.routineExerciseId !== routineExerciseId
+          ? it
+          : { ...it, sets: it.sets.map((s) => (s.setNumber === setNumber ? { ...s, weight: value } : s)) }
+      )
+    );
+  };
+
+  const saveWeight = async (item, set) => {
+    if (set.logId) {
+      await supabase.from("exercise_logs").update({ weight_kg: set.weight || null }).eq("id", set.logId);
+    } else {
+      const { data } = await supabase
+        .from("exercise_logs")
+        .insert({
+          routine_exercise_id: item.routineExerciseId,
+          client_id: user.id
