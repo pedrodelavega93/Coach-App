@@ -130,4 +130,249 @@ export default function Workout() {
         .from("exercise_logs")
         .insert({
           routine_exercise_id: item.routineExerciseId,
-          client_id: user.id
+          client_id: user.id,
+          set_number: set.setNumber,
+          weight_kg: set.weight || null,
+          completed: false,
+        })
+        .select()
+        .maybeSingle();
+      if (data) {
+        setItems((prev) =>
+          prev.map((it) =>
+            it.routineExerciseId !== item.routineExerciseId
+              ? it
+              : { ...it, sets: it.sets.map((s) => (s.setNumber === set.setNumber ? { ...s, logId: data.id } : s)) }
+          )
+        );
+      }
+    }
+  };
+
+  const toggleSet = async (item, set) => {
+    const newCompleted = !set.completed;
+
+    if (set.logId) {
+      await supabase
+        .from("exercise_logs")
+        .update({ weight_kg: set.weight || null, completed: newCompleted })
+        .eq("id", set.logId);
+    } else {
+      const { data } = await supabase
+        .from("exercise_logs")
+        .insert({
+          routine_exercise_id: item.routineExerciseId,
+          client_id: user.id,
+          set_number: set.setNumber,
+          weight_kg: set.weight || null,
+          completed: newCompleted,
+        })
+        .select()
+        .maybeSingle();
+      if (data) set.logId = data.id;
+    }
+
+    setItems((prev) =>
+      prev.map((it) =>
+        it.routineExerciseId !== item.routineExerciseId
+          ? it
+          : {
+              ...it,
+              sets: it.sets.map((s) =>
+                s.setNumber === set.setNumber ? { ...s, completed: newCompleted, logId: set.logId } : s
+              ),
+            }
+      )
+    );
+
+    if (newCompleted) {
+      const idx = items.findIndex((it) => it.routineExerciseId === item.routineExerciseId);
+      const next = items[idx + 1];
+      setRest({ secondsLeft: item.restSeconds, running: true, nextName: next?.exercise?.name || null });
+    }
+  };
+
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, "0");
+    const s = (secs % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
+  const openVideo = async (exercise) => {
+    setActiveVideo(exercise);
+    setActiveVideoUrl(null);
+    setLoadingVideo(true);
+    const res = await fetch(`/api/get-exercise-video-url?exerciseId=${exercise.id}&clientId=${user.id}`);
+    const json = await res.json();
+    setLoadingVideo(false);
+    if (json.url) setActiveVideoUrl(json.url);
+  };
+
+  if (loading) return <p style={{ color: "#EDEAE3", padding: 24 }}>Cargando entrenamiento...</p>;
+  if (!routine) return <p style={{ color: "#EDEAE3", padding: 24 }}>No se encontró la rutina.</p>;
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#1C1F22", padding: 24, paddingBottom: rest ? 140 : 24 }}>
+      <div style={{ maxWidth: 520, margin: "0 auto" }}>
+        <p
+          onClick={() => router.push("/client")}
+          style={{ color: "#8A9199", fontSize: 14, cursor: "pointer", marginBottom: 16 }}
+        >
+          ← Volver
+        </p>
+
+        <div style={{ background: "#26292E", border: "1px solid #3A3F45", borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <h2 style={{ color: "#EDEAE3", marginTop: 0, marginBottom: 10 }}>{routine.title}</h2>
+          <div style={{ width: "100%", height: 6, background: "#3A3F45", borderRadius: 3, marginBottom: 6 }}>
+            <div style={{ width: `${progressPct}%`, height: "100%", background: "#8FBF8F", borderRadius: 3 }} />
+          </div>
+          <p style={{ color: "#8A9199", fontSize: 13, margin: 0 }}>
+            {completedExercises} de {totalExercises} ejercicios completados
+          </p>
+        </div>
+
+        {rest && (
+          <div style={{ position: "fixed", bottom: 16, left: 16, right: 16, maxWidth: 520, margin: "0 auto", background: "#26292E", border: "1px solid #F4C430", borderRadius: 12, padding: 18, zIndex: 40, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+            <p style={{ color: "#8A9199", fontSize: 13, marginBottom: 4 }}>Descanso</p>
+            <p style={{ color: "#F4C430", fontSize: 28, fontWeight: 700, margin: "0 0 10px 0" }}>
+              {formatTime(rest.secondsLeft)}
+            </p>
+            <button
+              onClick={() => setRest((r) => (r ? { ...r, running: !r.running } : r))}
+              style={{ padding: "8px 16px", borderRadius: 6, background: "#3A3F45", color: "#EDEAE3", border: "none", cursor: "pointer", marginBottom: 10 }}
+            >
+              {rest.running ? "⏸" : "▶️"}
+            </button>
+            {rest.nextName && (
+              <p style={{ color: "#8A9199", fontSize: 13, margin: 0 }}>
+                Siguiente ejercicio: <span style={{ color: "#EDEAE3" }}>{rest.nextName}</span>
+              </p>
+            )}
+          </div>
+        )}
+
+        {items.map((item) => {
+          const allDone = item.sets.every((s) => s.completed);
+          return (
+            <div
+              key={item.routineExerciseId}
+              style={{
+                background: "#26292E",
+                border: `1px solid ${allDone ? "#4C7A4C" : "#3A3F45"}`,
+                borderRadius: 12,
+                padding: 18,
+                marginBottom: 14,
+              }}
+            >
+              <h3
+                onClick={() => openVideo(item.exercise)}
+                style={{ color: "#F4C430", margin: "0 0 4px 0", cursor: "pointer", textDecoration: "underline" }}
+              >
+                {item.exercise?.name || "Ejercicio"}
+              </h3>
+              <p style={{ color: "#5C6268", fontSize: 12, marginBottom: 12 }}>
+                {item.setsCount} series × {item.reps} reps · Descanso {item.restSeconds}s
+              </p>
+
+              {item.sets.some((s) => s.previousWeight != null) && (
+                <p style={{ color: "#8A9199", fontSize: 12, marginBottom: 10, fontStyle: "italic" }}>
+                  La semana pasada:{" "}
+                  {item.sets
+                    .filter((s) => s.previousWeight != null)
+                    .map((s) => `${s.previousWeight}kg`)
+                    .join(", ")}
+                  {" · "}Intenta {Math.max(...item.sets.map((s) => Number(s.previousWeight) || 0)) + 2.5}kg
+                </p>
+              )}
+
+              <div>
+                {item.sets.map((set) => (
+                  <div
+                    key={set.setNumber}
+                    style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={set.completed}
+                      onChange={() => toggleSet(item, set)}
+                    />
+                    <span style={{ color: "#8A9199", fontSize: 13, width: 60 }}>Serie {set.setNumber}</span>
+                    <input
+                      type="number"
+                      placeholder="kg"
+                      value={set.weight}
+                      onChange={(e) => updateWeight(item.routineExerciseId, set.setNumber, e.target.value)}
+                      onBlur={() => saveWeight(item, set)}
+                      style={{
+                        width: 70,
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        background: "#1C1F22",
+                        border: "1px solid #3A3F45",
+                        color: "#EDEAE3",
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {activeVideo && (
+          <div
+            onClick={() => { setActiveVideo(null); setActiveVideoUrl(null); }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.85)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 20,
+              zIndex: 50,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: "#26292E", borderRadius: 12, padding: 20, maxWidth: 480, width: "100%", maxHeight: "85vh", overflowY: "auto" }}
+            >
+              <h3 style={{ color: "#EDEAE3", marginTop: 0 }}>{activeVideo.name}</h3>
+              {loadingVideo ? (
+                <p style={{ color: "#8A9199" }}>Cargando video...</p>
+              ) : activeVideoUrl ? (
+                <video src={activeVideoUrl} controls autoPlay style={{ width: "100%", borderRadius: 8, marginBottom: 14 }} />
+              ) : (
+                <p style={{ color: "#8A9199" }}>Tu entrenador aún no subió un video para este ejercicio.</p>
+              )}
+              {activeVideo.technique_notes && (
+                <>
+                  <p style={{ color: "#8A9199", fontSize: 13, marginBottom: 2 }}>Técnica</p>
+                  <p style={{ color: "#EDEAE3", fontSize: 14, marginBottom: 10 }}>{activeVideo.technique_notes}</p>
+                </>
+              )}
+              {activeVideo.common_mistakes && (
+                <>
+                  <p style={{ color: "#8A9199", fontSize: 13, marginBottom: 2 }}>Errores comunes</p>
+                  <p style={{ color: "#EDEAE3", fontSize: 14, marginBottom: 10 }}>{activeVideo.common_mistakes}</p>
+                </>
+              )}
+              {activeVideo.muscles_worked && (
+                <>
+                  <p style={{ color: "#8A9199", fontSize: 13, marginBottom: 2 }}>Músculos trabajados</p>
+                  <p style={{ color: "#EDEAE3", fontSize: 14, marginBottom: 10 }}>{activeVideo.muscles_worked}</p>
+                </>
+              )}
+              <button
+                onClick={() => { setActiveVideo(null); setActiveVideoUrl(null); }}
+                style={{ width: "100%", padding: 12, borderRadius: 8, background: "#F4C430", color: "#1C1F22", fontWeight: 700, border: "none", cursor: "pointer" }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
