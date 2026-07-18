@@ -166,16 +166,14 @@ export default function BuildRoutine() {
         common_mistakes: exMistakes || null,
       };
 
-      let data, error;
+      let error;
       if (editingExerciseId) {
-        ({ data, error } = await supabase
+        ({ error } = await supabase
           .from("exercises")
           .update(payload)
-          .eq("id", editingExerciseId)
-          .select()
-          .maybeSingle());
+          .eq("id", editingExerciseId));
       } else {
-        ({ data, error } = await supabase.from("exercises").insert(payload).select().maybeSingle());
+        ({ error } = await supabase.from("exercises").insert(payload));
       }
 
       setUploadingVideo(false);
@@ -184,18 +182,8 @@ export default function BuildRoutine() {
         alert("Error al guardar el ejercicio: " + error.message);
         return;
       }
-      if (!data) {
-        alert("No se pudo guardar el ejercicio (no se recibió confirmación de la base de datos). Intenta de nuevo.");
-        return;
-      }
 
-      setCatalog((prev) => {
-        const withoutOld = prev.filter((c) => c.id !== data.id);
-        return [...withoutOld, data].sort((a, b) => a.name.localeCompare(b.name));
-      });
-      // Si el ejercicio editado ya estaba agregado a la rutina actual, actualiza su nombre ahí también
-      setItems((prev) => prev.map((it) => (it.exercise_id === data.id ? { ...it, name: data.name } : it)));
-      setPickExerciseId(data.id);
+      await loadCatalog();
       cancelExerciseForm();
     } catch (err) {
       setUploadingVideo(false);
